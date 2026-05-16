@@ -83,8 +83,11 @@ cd poker_logic_demo
 cd web
 npm install
 npm run dev
-# → http://localhost:5173/poker_logic_demo/
+# → http://localhost:5173/
 ```
+
+> Forking without a custom domain? Set `VITE_BASE_PATH=/<repo>/` when
+> running `npm run build` so asset URLs include your project subpath.
 
 Other commands:
 
@@ -120,10 +123,14 @@ cargo test -p black-dealing
 
 1. Fork or clone this repo to your own GitHub account.
 2. In repo settings → **Pages**, set **Source** to *GitHub Actions*.
-3. Push to `main`. The `Deploy to GitHub Pages` workflow builds Rust
-   → WASM → Vite bundle and publishes to `<user>.github.io/<repo>/`.
-4. If your repo name differs from `poker_logic_demo`, update the
-   `VITE_BASE_PATH` env or the default in `web/vite.config.ts`.
+3. If you have a custom domain: configure it in **Pages → Custom domain**,
+   point DNS at `<user>.github.io`, and replace `web/public/CNAME` with
+   your domain (or delete it if not using one).
+4. Otherwise, set `VITE_BASE_PATH` to your repo's subpath in
+   `web/vite.config.ts` (e.g. `"/poker_logic_demo/"`) so asset URLs
+   resolve under `<user>.github.io/<repo>/`.
+5. Push to `main`. The workflow builds Rust → WASM → Vite bundle and
+   publishes.
 
 ## License
 
