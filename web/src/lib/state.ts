@@ -4,6 +4,7 @@
 
 import type { Card, Hand } from "./cards";
 import type { EquityReport } from "./equity";
+import type { TrialResult } from "./dealer-runner";
 
 export type Slot = Card | null;
 export type HandSlots = [Slot, Slot];
@@ -11,6 +12,7 @@ export type CommunitySlots = [Slot, Slot, Slot, Slot];
 
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 4;
+export const DEFAULT_WEIGHT = 50;
 
 export type PickerTarget =
   | { kind: "hand"; player: number; index: 0 | 1 }
@@ -22,11 +24,20 @@ export type EquityState =
   | { kind: "ready"; report: EquityReport }
   | { kind: "error"; message: string };
 
+export type TrialState =
+  | { kind: "idle" }
+  | { kind: "pending" }
+  | { kind: "ready"; trial: TrialResult }
+  | { kind: "error"; message: string };
+
 export interface State {
   hands: HandSlots[];
   community: CommunitySlots;
   picker: PickerTarget | null;
+  /** Raw per-player weights (relative; need not sum to 1). */
+  weights: number[];
   equity: EquityState;
+  trial: TrialState;
 }
 
 export type Action =
@@ -35,9 +46,13 @@ export type Action =
   | { type: "set-card"; target: PickerTarget; card: Card | null }
   | { type: "add-player" }
   | { type: "remove-player"; index: number }
+  | { type: "set-weight"; index: number; value: number }
   | { type: "equity-start" }
   | { type: "equity-success"; report: EquityReport }
-  | { type: "equity-error"; message: string };
+  | { type: "equity-error"; message: string }
+  | { type: "trial-start" }
+  | { type: "trial-success"; trial: TrialResult }
+  | { type: "trial-error"; message: string };
 
 export function initialState(): State {
   // Pre-fill with the README example (AA vs KK preflop) so the demo
@@ -49,7 +64,9 @@ export function initialState(): State {
     ],
     community: [null, null, null, null],
     picker: null,
+    weights: [DEFAULT_WEIGHT, DEFAULT_WEIGHT],
     equity: { kind: "idle" },
+    trial: { kind: "idle" },
   };
 }
 
@@ -63,7 +80,12 @@ export function reducer(state: State, action: Action): State {
 
     case "set-card": {
       const next = applyCard(state, action.target, action.card);
-      return { ...next, picker: null, equity: { kind: "idle" } };
+      return {
+        ...next,
+        picker: null,
+        equity: { kind: "idle" },
+        trial: { kind: "idle" },
+      };
     }
 
     case "add-player": {
@@ -71,7 +93,9 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state,
         hands: [...state.hands, [null, null] as HandSlots],
+        weights: [...state.weights, DEFAULT_WEIGHT],
         equity: { kind: "idle" },
+        trial: { kind: "idle" },
       };
     }
 
@@ -80,8 +104,21 @@ export function reducer(state: State, action: Action): State {
       return {
         ...state,
         hands: state.hands.filter((_, i) => i !== action.index),
+        weights: state.weights.filter((_, i) => i !== action.index),
         equity: { kind: "idle" },
+        trial: { kind: "idle" },
       };
+    }
+
+    case "set-weight": {
+      const weights = state.weights.slice();
+      if (action.index >= 0 && action.index < weights.length) {
+        weights[action.index] = Math.max(0, action.value);
+      }
+      // Editing weights doesn't invalidate the dealing table — it only
+      // affects future samples. We don't reset trial state here so the
+      // user can keep seeing the last dealt hand while adjusting M.
+      return { ...state, weights };
     }
 
     case "equity-start":
@@ -92,6 +129,15 @@ export function reducer(state: State, action: Action): State {
 
     case "equity-error":
       return { ...state, equity: { kind: "error", message: action.message } };
+
+    case "trial-start":
+      return { ...state, trial: { kind: "pending" } };
+
+    case "trial-success":
+      return { ...state, trial: { kind: "ready", trial: action.trial } };
+
+    case "trial-error":
+      return { ...state, trial: { kind: "error", message: action.message } };
   }
 }
 
@@ -174,4 +220,12 @@ export function readyCommunity(state: State): Card[] | null {
 
 export function canComputeEquity(state: State): boolean {
   return readyHands(state) !== null && readyCommunity(state) !== null;
+}
+
+/** Returns normalized weights summing to 1 (or null if all are zero). */
+export function normalizeWeights(weights: ReadonlyArray<number>): number[] | null {
+  const clamped = weights.map((w) => Math.max(0, w));
+  const total = clamped.reduce((a, b) => a + b, 0);
+  if (total <= 0) return null;
+  return clamped.map((w) => w / total);
 }

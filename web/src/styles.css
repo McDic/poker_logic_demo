@@ -202,6 +202,78 @@ h2 { margin: 0 0 0.75rem 0; font-size: 0.85rem; font-weight: 600; text-transform
   transition: width 0.15s ease;
 }
 
+/* --- weight sliders --- */
+.weights { display: flex; flex-direction: column; gap: 0.5rem; max-width: 36rem; }
+.weight {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr 4rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+}
+.weight--hi {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.weight__label { font-weight: 600; }
+.weight__slider { width: 100%; }
+.weight__readout {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+}
+
+/* --- deal button + trial result --- */
+.deal-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.75rem; }
+.deal {
+  padding: 0.55rem 1.15rem;
+  border: none;
+  border-radius: 4px;
+  background: var(--accent);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.deal:hover:not(:disabled) { filter: brightness(1.1); }
+.deal:disabled { background: var(--soft-2); color: var(--muted); cursor: not-allowed; }
+.deal-row__note { font-size: 0.85rem; opacity: 0.7; }
+
+.trial {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--soft-2);
+  border-radius: 6px;
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.trial__label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  margin-bottom: 0.25rem;
+}
+.trial__cards { display: flex; gap: 0.4rem; }
+.trial__card {
+  font-size: 1.15rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+}
+.trial__card--preset { opacity: 0.7; }
+.trial__card--dealt {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+.trial__winner-name { font-size: 1.25rem; font-weight: 700; color: var(--accent); }
+.trial__chop { font-style: italic; opacity: 0.7; font-weight: 400; font-size: 0.9rem; margin-left: 0.25rem; }
+
 /* --- picker modal --- */
 .modal-backdrop {
   position: fixed;
