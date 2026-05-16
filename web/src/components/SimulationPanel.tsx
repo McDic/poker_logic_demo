@@ -1,5 +1,9 @@
 import type { StreamState } from "../lib/state";
-import { normalizeWeights } from "../lib/state";
+import {
+  MAX_STREAM_TOTAL,
+  MIN_STREAM_TOTAL,
+  normalizeWeights,
+} from "../lib/state";
 
 interface Props {
   stream: StreamState;
@@ -15,8 +19,6 @@ interface Props {
   onReset: () => void;
 }
 
-const MIN = 1_000;
-const MAX = 1_000_000;
 const STEP = 1_000;
 
 export function SimulationPanel(props: Props) {
@@ -64,8 +66,8 @@ export function SimulationPanel(props: Props) {
           <span className="sim__label">Trials</span>
           <input
             type="number"
-            min={MIN}
-            max={MAX}
+            min={MIN_STREAM_TOTAL}
+            max={MAX_STREAM_TOTAL}
             step={STEP}
             value={total}
             disabled={isRunning}

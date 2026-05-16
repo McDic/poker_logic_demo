@@ -94,7 +94,7 @@ export type Action =
 
 export const DEFAULT_STREAM_TOTAL = 50_000;
 export const MIN_STREAM_TOTAL = 1_000;
-export const MAX_STREAM_TOTAL = 1_000_000;
+export const MAX_STREAM_TOTAL = 100_000_000;
 
 export function initialState(): State {
   // Pre-fill with the README example (AA vs KK preflop) so the demo

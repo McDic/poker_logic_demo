@@ -83,7 +83,9 @@ export class DealerRunner {
     this.worker.postMessage(msg);
   }
 
-  startStream(weights: number[], totalTrials: number, batchSize = 5000): number {
+  // batchSize=50_000 keeps progress messages at ~30-200/s even on the
+  // fastest scenarios while still bounding stop latency to a few ms.
+  startStream(weights: number[], totalTrials: number, batchSize = 50_000): number {
     if (this.disposed || !this.worker || this.buildInFlight) return -1;
     this.latestStreamId += 1;
     const id = this.latestStreamId;
