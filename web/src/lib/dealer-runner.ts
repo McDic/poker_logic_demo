@@ -5,6 +5,8 @@ import type {
   DealerRequest,
   DealerResponse,
   SampleResponse,
+  StreamFinishResponse,
+  StreamProgressResponse,
 } from "../workers/dealer.worker";
 
 export interface TrialResult {
@@ -13,26 +15,43 @@ export interface TrialResult {
   chopped: boolean;
 }
 
+export interface StreamProgress {
+  trials: number;
+  counts: number[];
+  chops: number;
+}
+
+export interface StreamFinish extends StreamProgress {
+  stopped: boolean;
+}
+
 export interface DealerHandlers {
   onBuilt: (report: EquityReport) => void;
   onBuildError: (message: string) => void;
   onSampled: (trial: TrialResult) => void;
   onSampleError: (message: string) => void;
+  onStreamProgress: (p: StreamProgress) => void;
+  onStreamFinish: (f: StreamFinish) => void;
+  onStreamError: (message: string) => void;
 }
 
 /**
  * Manages a long-lived worker that owns a DealingTable.
  *
- * - `build()` always replaces the in-flight build (terminating the worker
- *   if it's busy) and invalidates the previous table.
- * - `sample()` posts to the existing worker. It is only safe to call after
- *   the most recent `build()` has resolved (caller's responsibility);
- *   responses for stale ids are dropped.
+ * Lifecycles:
+ *   - build()  always replaces the worker (terminating any in-flight
+ *              build or stream) and invalidates the previous table.
+ *   - sample() reuses the worker; only safe to call after build resolves.
+ *   - startStream() posts a stream request; the worker yields between
+ *              batches so stopStream() can interrupt cooperatively.
+ *
+ * Stale responses (mismatched ids) are silently dropped.
  */
 export class DealerRunner {
   private worker: Worker | null = null;
   private latestBuildId = 0;
   private latestSampleId = 0;
+  private latestStreamId = 0;
   private buildInFlight = false;
   private disposed = false;
 
@@ -40,8 +59,6 @@ export class DealerRunner {
 
   build(hands: Hand[], community: Card[]): void {
     if (this.disposed) return;
-    // A new build cancels everything older — terminate any running worker so
-    // a stale 7s preflop build doesn't keep burning CPU.
     this.terminate();
     this.ensureWorker();
     this.latestBuildId += 1;
@@ -56,14 +73,34 @@ export class DealerRunner {
   }
 
   sample(weights: number[]): void {
-    if (this.disposed) return;
-    if (!this.worker || this.buildInFlight) return;
+    if (this.disposed || !this.worker || this.buildInFlight) return;
     this.latestSampleId += 1;
     const msg: DealerRequest = {
       type: "sample",
       id: this.latestSampleId,
       weights,
     };
+    this.worker.postMessage(msg);
+  }
+
+  startStream(weights: number[], totalTrials: number, batchSize = 5000): number {
+    if (this.disposed || !this.worker || this.buildInFlight) return -1;
+    this.latestStreamId += 1;
+    const id = this.latestStreamId;
+    const msg: DealerRequest = {
+      type: "stream",
+      id,
+      weights,
+      totalTrials,
+      batchSize,
+    };
+    this.worker.postMessage(msg);
+    return id;
+  }
+
+  stopStream(): void {
+    if (!this.worker) return;
+    const msg: DealerRequest = { type: "stop", id: this.latestStreamId };
     this.worker.postMessage(msg);
   }
 
@@ -92,6 +129,8 @@ export class DealerRunner {
       const msg = event.data;
       if (msg.type === "built") this.handleBuilt(msg);
       else if (msg.type === "trial") this.handleSample(msg);
+      else if (msg.type === "stream-progress") this.handleStreamProgress(msg);
+      else if (msg.type === "stream-finish") this.handleStreamFinish(msg);
     };
     this.worker.onerror = (event) => {
       this.buildInFlight = false;
@@ -124,6 +163,29 @@ export class DealerRunner {
       });
     } else {
       this.handlers.onSampleError(msg.error);
+    }
+  }
+
+  private handleStreamProgress(msg: StreamProgressResponse): void {
+    if (msg.id !== this.latestStreamId) return;
+    this.handlers.onStreamProgress({
+      trials: msg.trials,
+      counts: msg.counts,
+      chops: msg.chops,
+    });
+  }
+
+  private handleStreamFinish(msg: StreamFinishResponse): void {
+    if (msg.id !== this.latestStreamId) return;
+    if (msg.ok) {
+      this.handlers.onStreamFinish({
+        trials: msg.trials,
+        counts: msg.counts,
+        chops: msg.chops,
+        stopped: msg.stopped,
+      });
+    } else {
+      this.handlers.onStreamError(msg.error);
     }
   }
 }

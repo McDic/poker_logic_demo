@@ -94,6 +94,27 @@ pub fn compute_equity(
 // DealingTable (Stage 5)
 // ---------------------------------------------------------------------------
 
+/// Aggregate result of a batch of trials. Held in WASM until consumed
+/// so we don't pay JS allocation cost in the inner sampling loop.
+#[wasm_bindgen]
+pub struct BatchResult {
+    counts: Vec<u32>,
+    chops: u32,
+}
+
+#[wasm_bindgen]
+impl BatchResult {
+    #[wasm_bindgen(getter)]
+    pub fn counts(&self) -> Vec<u32> {
+        self.counts.clone()
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn chops(&self) -> u32 {
+        self.chops
+    }
+}
+
 /// One sampled "black deal": a winner index plus the 5-card runout.
 #[wasm_bindgen]
 pub struct Trial {
@@ -261,6 +282,70 @@ impl DealingTable {
             return vec![0.0; self.group_sizes.len()];
         }
         self.group_sizes.iter().map(|g| g / bc).collect()
+    }
+
+    /// Run `count` trials at once, returning aggregate counts. Skips
+    /// allocating individual `Trial` objects so the inner loop stays in
+    /// Rust at near-native speed.
+    #[wasm_bindgen(js_name = sampleBatch)]
+    pub fn sample_batch(
+        &mut self,
+        weights: Vec<f64>,
+        count: u32,
+    ) -> Result<BatchResult, JsValue> {
+        let n = self.group_sizes.len();
+        if weights.len() != n {
+            return Err(JsValue::from_str(&format!(
+                "expected {} weights, got {}",
+                n,
+                weights.len()
+            )));
+        }
+        let weights: Vec<f64> = weights.iter().map(|w| w.max(0.0)).collect();
+        let total: f64 = weights.iter().sum();
+        if total <= 0.0 {
+            return Err(JsValue::from_str("all player weights are zero"));
+        }
+        for i in 0..n {
+            if weights[i] > 0.0 && self.group_sizes[i] <= 0.0 {
+                return Err(JsValue::from_str(&format!(
+                    "player {} has nonzero weight but cannot win any runout",
+                    i + 1
+                )));
+            }
+        }
+
+        let mut counts = vec![0u32; n];
+        let mut chops = 0u32;
+        let n_boards = self.boards.len();
+
+        for _ in 0..count {
+            let mut u = self.rng.gen::<f64>() * total;
+            let mut winner = n - 1;
+            for (i, &w) in weights.iter().enumerate() {
+                u -= w;
+                if u <= 0.0 {
+                    winner = i;
+                    break;
+                }
+            }
+            loop {
+                let b = self.rng.gen_range(0..n_boards);
+                let mask = self.tied[b];
+                if (mask >> winner) & 1 == 1 {
+                    let tied_count = mask.count_ones();
+                    if self.rng.gen::<f64>() * (tied_count as f64) < 1.0 {
+                        counts[winner] += 1;
+                        if tied_count > 1 {
+                            chops += 1;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        Ok(BatchResult { counts, chops })
     }
 
     /// Sample one biased runout.

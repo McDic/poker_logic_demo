@@ -21,6 +21,7 @@ import { CardPickerPopover } from "./components/CardPickerPopover";
 import { EquityTable } from "./components/EquityTable";
 import { WeightSliders } from "./components/WeightSliders";
 import { TrialResultPanel } from "./components/TrialResult";
+import { SimulationPanel } from "./components/SimulationPanel";
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
@@ -38,6 +39,22 @@ export function App() {
       onBuildError: (message) => dispatch({ type: "equity-error", message }),
       onSampled: (trial) => dispatch({ type: "trial-success", trial }),
       onSampleError: (message) => dispatch({ type: "trial-error", message }),
+      onStreamProgress: (p) =>
+        dispatch({
+          type: "stream-progress",
+          trials: p.trials,
+          counts: p.counts,
+          chops: p.chops,
+        }),
+      onStreamFinish: (f) =>
+        dispatch({
+          type: "stream-finish",
+          stopped: f.stopped,
+          trials: f.trials,
+          counts: f.counts,
+          chops: f.chops,
+        }),
+      onStreamError: (message) => dispatch({ type: "stream-error", message }),
     });
     runnerRef.current = runner;
     return () => {
@@ -98,6 +115,27 @@ export function App() {
     dispatch({ type: "trial-start" });
     runner.sample(state.weights);
   }, [state.equity.kind, state.weights]);
+
+  const handleStreamStart = useCallback(() => {
+    const runner = runnerRef.current;
+    if (!runner) return;
+    if (state.equity.kind !== "ready") return;
+    if (normalizeWeights(state.weights) === null) return;
+    dispatch({
+      type: "stream-start",
+      weights: state.weights,
+      total: state.streamTotal,
+    });
+    runner.startStream(state.weights, state.streamTotal);
+  }, [state.equity.kind, state.weights, state.streamTotal]);
+
+  const handleStreamStop = useCallback(() => {
+    runnerRef.current?.stopStream();
+  }, []);
+
+  const handleStreamReset = useCallback(() => {
+    dispatch({ type: "stream-reset" });
+  }, []);
 
   const pickerUsed = useMemo(() => {
     if (!state.picker) return usedCards;
@@ -214,6 +252,29 @@ export function App() {
         {state.trial.kind === "ready" && (
           <TrialResultPanel trial={state.trial.trial} presetCount={presetCount} />
         )}
+      </section>
+
+      <section className="panel">
+        <h2>Streaming simulation</h2>
+        <p className="panel__hint">
+          Run thousands of biased deals and watch the empirical win rate
+          converge to your target M. Convergence is the proof: regardless of
+          true equity, the dealer can hit any target.
+        </p>
+        <SimulationPanel
+          stream={state.stream}
+          total={state.streamTotal}
+          liveWeights={state.weights}
+          playerCount={state.hands.length}
+          canStart={
+            state.equity.kind === "ready" &&
+            normalizeWeights(state.weights) !== null
+          }
+          onTotalChange={(value) => dispatch({ type: "stream-total", value })}
+          onStart={handleStreamStart}
+          onStop={handleStreamStop}
+          onReset={handleStreamReset}
+        />
       </section>
 
       {state.picker && (

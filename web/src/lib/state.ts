@@ -30,14 +30,33 @@ export type TrialState =
   | { kind: "ready"; trial: TrialResult }
   | { kind: "error"; message: string };
 
+export interface StreamRun {
+  /** Weights as configured at the moment Start was clicked (frozen). */
+  weights: number[];
+  total: number;
+  trials: number;
+  counts: number[];
+  chops: number;
+}
+
+export type StreamState =
+  | { kind: "idle" }
+  | { kind: "running"; run: StreamRun }
+  | { kind: "stopped"; run: StreamRun }
+  | { kind: "done"; run: StreamRun }
+  | { kind: "error"; message: string };
+
 export interface State {
   hands: HandSlots[];
   community: CommunitySlots;
   picker: PickerTarget | null;
   /** Raw per-player weights (relative; need not sum to 1). */
   weights: number[];
+  /** Target total trials for the next stream run. */
+  streamTotal: number;
   equity: EquityState;
   trial: TrialState;
+  stream: StreamState;
 }
 
 export type Action =
@@ -53,7 +72,28 @@ export type Action =
   | { type: "equity-error"; message: string }
   | { type: "trial-start" }
   | { type: "trial-success"; trial: TrialResult }
-  | { type: "trial-error"; message: string };
+  | { type: "trial-error"; message: string }
+  | { type: "stream-total"; value: number }
+  | { type: "stream-start"; weights: number[]; total: number }
+  | {
+      type: "stream-progress";
+      trials: number;
+      counts: number[];
+      chops: number;
+    }
+  | {
+      type: "stream-finish";
+      stopped: boolean;
+      trials: number;
+      counts: number[];
+      chops: number;
+    }
+  | { type: "stream-error"; message: string }
+  | { type: "stream-reset" };
+
+export const DEFAULT_STREAM_TOTAL = 50_000;
+export const MIN_STREAM_TOTAL = 1_000;
+export const MAX_STREAM_TOTAL = 1_000_000;
 
 export function initialState(): State {
   // Pre-fill with the README example (AA vs KK preflop) so the demo
@@ -66,8 +106,10 @@ export function initialState(): State {
     community: [null, null, null, null],
     picker: null,
     weights: [DEFAULT_WEIGHT, DEFAULT_WEIGHT],
+    streamTotal: DEFAULT_STREAM_TOTAL,
     equity: { kind: "idle" },
     trial: { kind: "idle" },
+    stream: { kind: "idle" },
   };
 }
 
@@ -86,6 +128,7 @@ export function reducer(state: State, action: Action): State {
         picker: null,
         equity: { kind: "idle" },
         trial: { kind: "idle" },
+        stream: { kind: "idle" },
       };
     }
 
@@ -97,6 +140,7 @@ export function reducer(state: State, action: Action): State {
         weights: [...state.weights, DEFAULT_WEIGHT],
         equity: { kind: "idle" },
         trial: { kind: "idle" },
+        stream: { kind: "idle" },
       };
     }
 
@@ -108,6 +152,7 @@ export function reducer(state: State, action: Action): State {
         weights: state.weights.filter((_, i) => i !== action.index),
         equity: { kind: "idle" },
         trial: { kind: "idle" },
+        stream: { kind: "idle" },
       };
     }
 
@@ -151,6 +196,65 @@ export function reducer(state: State, action: Action): State {
 
     case "trial-error":
       return { ...state, trial: { kind: "error", message: action.message } };
+
+    case "stream-total":
+      return {
+        ...state,
+        streamTotal: Math.min(
+          MAX_STREAM_TOTAL,
+          Math.max(MIN_STREAM_TOTAL, Math.floor(action.value)),
+        ),
+      };
+
+    case "stream-start": {
+      const run: StreamRun = {
+        weights: action.weights.slice(),
+        total: action.total,
+        trials: 0,
+        counts: new Array(action.weights.length).fill(0),
+        chops: 0,
+      };
+      return { ...state, stream: { kind: "running", run } };
+    }
+
+    case "stream-progress": {
+      if (state.stream.kind !== "running") return state;
+      return {
+        ...state,
+        stream: {
+          kind: "running",
+          run: {
+            ...state.stream.run,
+            trials: action.trials,
+            counts: action.counts,
+            chops: action.chops,
+          },
+        },
+      };
+    }
+
+    case "stream-finish": {
+      if (state.stream.kind !== "running") return state;
+      const run: StreamRun = {
+        ...state.stream.run,
+        trials: action.trials,
+        counts: action.counts,
+        chops: action.chops,
+      };
+      return {
+        ...state,
+        stream: {
+          kind: action.stopped ? "stopped" : "done",
+          run,
+        },
+      };
+    }
+
+    case "stream-error":
+      return { ...state, stream: { kind: "error", message: action.message } };
+
+    case "stream-reset":
+      return { ...state, stream: { kind: "idle" } };
   }
 }
 

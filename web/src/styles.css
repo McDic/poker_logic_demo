@@ -252,6 +252,73 @@ h2 { margin: 0 0 0.75rem 0; font-size: 0.85rem; font-weight: 600; text-transform
 .calibrate:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .calibrate:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.stop {
+  padding: 0.55rem 1.15rem;
+  border: 1px solid var(--err);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--err);
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+.stop:hover { background: color-mix(in srgb, var(--err) 12%, transparent); }
+
+/* --- simulation panel --- */
+.sim { display: flex; flex-direction: column; gap: 0.75rem; }
+.sim__controls { display: flex; align-items: flex-end; gap: 0.75rem; flex-wrap: wrap; }
+.sim__field { display: flex; flex-direction: column; gap: 0.25rem; }
+.sim__label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+.sim__input {
+  width: 9rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  color: inherit;
+  font-size: 0.95rem;
+}
+
+.sim__stats { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.sim__stat { display: flex; flex-direction: column; }
+.sim__stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; }
+.sim__stat-value { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+
+.sim__table { border-collapse: collapse; width: 100%; }
+.sim__table th, .sim__table td {
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.sim__table th { font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; }
+.sim__table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.sim__table .bar { width: 40%; }
+
+.delta--pos { color: #137f3b; }
+.delta--neg { color: var(--err); }
+
+.conv {
+  position: relative;
+  height: 0.85rem;
+  background: var(--soft-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.conv__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+.conv__target {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 2px;
+  background: color-mix(in srgb, canvastext 70%, transparent);
+  transform: translateX(-1px);
+  pointer-events: none;
+}
+
 .trial {
   margin-top: 1rem;
   padding: 0.75rem 1rem;
