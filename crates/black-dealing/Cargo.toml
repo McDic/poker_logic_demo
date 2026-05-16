@@ -1,0 +1,23 @@
+[package]
+name = "black-dealing"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+description = "WASM bindings for black-card-dealing demonstration"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["panic-hook"]
+panic-hook = ["dep:console_error_panic_hook"]
+
+[dependencies]
+pokercraft-core = { path = "../../pokercraft-local/crates/core", features = ["wasm"] }
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+serde.workspace = true
+serde-wasm-bindgen.workspace = true
+rand.workspace = true
+getrandom.workspace = true
+console_error_panic_hook = { workspace = true, optional = true }

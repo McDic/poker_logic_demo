@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/black-dealing"]
+exclude = ["pokercraft-local"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace.dependencies]
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+getrandom = { version = "0.2", features = ["js"] }
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+rand = "0.8.6"
+
+[profile.release]
+opt-level = "s"
+lto = true

@@ -1,0 +1,3 @@
+[submodule "pokercraft-local"]
+	path = pokercraft-local
+	url = https://github.com/McDic/pokercraft-local.git
