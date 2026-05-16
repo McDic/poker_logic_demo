@@ -67,6 +67,7 @@ export type Action =
   | { type: "remove-player"; index: number }
   | { type: "set-weight"; index: number; value: number }
   | { type: "calibrate-weights" }
+  | { type: "reset-weights-to-equity" }
   | { type: "equity-start" }
   | { type: "equity-success"; report: EquityReport }
   | { type: "equity-error"; message: string }
@@ -177,6 +178,15 @@ export function reducer(state: State, action: Action): State {
         ...state,
         weights: normalized.map((w) => w * 100),
       };
+    }
+
+    case "reset-weights-to-equity": {
+      if (state.equity.kind !== "ready") return state;
+      const eq = state.equity.report.values;
+      if (eq.length !== state.weights.length) return state;
+      // Equities already sum to 1, so multiplying by 100 gives sliders
+      // whose positions match the true-equity percentages.
+      return { ...state, weights: eq.map((v) => v * 100) };
     }
 
     case "equity-start":

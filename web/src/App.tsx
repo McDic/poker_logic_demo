@@ -240,6 +240,15 @@ export function App() {
           >
             Calibrate
           </button>
+          <button
+            type="button"
+            className="calibrate"
+            onClick={() => dispatch({ type: "reset-weights-to-equity" })}
+            disabled={state.equity.kind !== "ready"}
+            title="Set each slider to the player's true equity — baseline fair-dealer scenario"
+          >
+            Reset to equity
+          </button>
           {state.equity.kind !== "ready" && (
             <span className="deal-row__note">
               Waiting for equity computation to finish…
