@@ -356,3 +356,20 @@ export function normalizeWeights(weights: ReadonlyArray<number>): number[] | nul
   if (total <= 0) return null;
   return clamped.map((w) => w / total);
 }
+
+/**
+ * Returns the indices of players that the dealer cannot satisfy:
+ * `weights[i] > 0` but the player's exact equity is 0 (no future runout
+ * makes them win). For example KK on an AA5 flop — AA already has set,
+ * KK can't win any runout, so demanding KK win > 0% of the time is
+ * impossible. Requires equity to be ready; returns empty otherwise.
+ */
+export function blockedPlayers(state: State): number[] {
+  if (state.equity.kind !== "ready") return [];
+  const eqs = state.equity.report.values;
+  const out: number[] = [];
+  for (let i = 0; i < state.weights.length; i++) {
+    if (state.weights[i] > 0 && (eqs[i] ?? 0) <= 0) out.push(i);
+  }
+  return out;
+}

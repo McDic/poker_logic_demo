@@ -4,6 +4,7 @@ import { DealerRunner } from "./lib/dealer-runner";
 import type { Card } from "./lib/cards";
 import {
   MAX_PLAYERS,
+  blockedPlayers,
   collectUsedCards,
   currentCardAt,
   detectStreet,
@@ -22,6 +23,7 @@ import { EquityTable } from "./components/EquityTable";
 import { WeightSliders } from "./components/WeightSliders";
 import { TrialResultPanel } from "./components/TrialResult";
 import { SimulationPanel } from "./components/SimulationPanel";
+import { Footer } from "./components/Footer";
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, undefined, initialState);
@@ -107,27 +109,31 @@ export function App() {
     dispatch({ type: "set-weight", index, value });
   }, []);
 
+  const blocked = useMemo(() => blockedPlayers(state), [state]);
+
   const handleDeal = useCallback(() => {
     const runner = runnerRef.current;
     if (!runner) return;
     if (state.equity.kind !== "ready") return;
     if (normalizeWeights(state.weights) === null) return;
+    if (blockedPlayers(state).length > 0) return;
     dispatch({ type: "trial-start" });
     runner.sample(state.weights);
-  }, [state.equity.kind, state.weights]);
+  }, [state.equity.kind, state.weights, state]);
 
   const handleStreamStart = useCallback(() => {
     const runner = runnerRef.current;
     if (!runner) return;
     if (state.equity.kind !== "ready") return;
     if (normalizeWeights(state.weights) === null) return;
+    if (blockedPlayers(state).length > 0) return;
     dispatch({
       type: "stream-start",
       weights: state.weights,
       total: state.streamTotal,
     });
     runner.startStream(state.weights, state.streamTotal);
-  }, [state.equity.kind, state.weights, state.streamTotal]);
+  }, [state.equity.kind, state.weights, state.streamTotal, state]);
 
   const handleStreamStop = useCallback(() => {
     runnerRef.current?.stopStream();
@@ -149,6 +155,7 @@ export function App() {
   const canDeal =
     state.equity.kind === "ready" &&
     normalizeWeights(state.weights) !== null &&
+    blocked.length === 0 &&
     state.trial.kind !== "pending";
 
   const highlightWinner =
@@ -222,6 +229,14 @@ export function App() {
           highlightIndex={highlightWinner}
           onChange={handleWeight}
         />
+        {blocked.length > 0 && (
+          <p className="hint--warn">
+            {blocked.map((i) => `P${i + 1}`).join(", ")} cannot win any runout
+            on this board (zero equity), but {blocked.length > 1 ? "their" : "its"}{" "}
+            weight is non-zero. Set {blocked.length > 1 ? "their weights" : "its weight"}{" "}
+            to zero, or change the cards.
+          </p>
+        )}
         <div className="deal-row">
           <button
             type="button"
@@ -277,7 +292,8 @@ export function App() {
           playerCount={state.hands.length}
           canStart={
             state.equity.kind === "ready" &&
-            normalizeWeights(state.weights) !== null
+            normalizeWeights(state.weights) !== null &&
+            blocked.length === 0
           }
           onTotalChange={(value) => dispatch({ type: "stream-total", value })}
           onStart={handleStreamStart}
@@ -294,6 +310,8 @@ export function App() {
           onClose={() => dispatch({ type: "close-picker" })}
         />
       )}
+
+      <Footer />
     </main>
   );
 }
