@@ -63,7 +63,7 @@ the simulation converges back to.
   managed by a single reducer so swapping the UI later requires no logic
   changes.
 - **Deploy** — GitHub Actions builds the WASM crate + Vite bundle and
-  publishes to GitHub Pages on every push to `master`.
+  publishes to GitHub Pages on every push to `main`.
 
 ## Local development
 
@@ -120,7 +120,7 @@ cargo test -p black-dealing
 
 1. Fork or clone this repo to your own GitHub account.
 2. In repo settings → **Pages**, set **Source** to *GitHub Actions*.
-3. Push to `master`. The `Deploy to GitHub Pages` workflow builds Rust
+3. Push to `main`. The `Deploy to GitHub Pages` workflow builds Rust
    → WASM → Vite bundle and publishes to `<user>.github.io/<repo>/`.
 4. If your repo name differs from `poker_logic_demo`, update the
    `VITE_BASE_PATH` env or the default in `web/vite.config.ts`.
