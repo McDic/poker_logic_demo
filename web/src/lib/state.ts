@@ -47,6 +47,7 @@ export type Action =
   | { type: "add-player" }
   | { type: "remove-player"; index: number }
   | { type: "set-weight"; index: number; value: number }
+  | { type: "calibrate-weights" }
   | { type: "equity-start" }
   | { type: "equity-success"; report: EquityReport }
   | { type: "equity-error"; message: string }
@@ -119,6 +120,18 @@ export function reducer(state: State, action: Action): State {
       // affects future samples. We don't reset trial state here so the
       // user can keep seeing the last dealt hand while adjusting M.
       return { ...state, weights };
+    }
+
+    case "calibrate-weights": {
+      // Rescale so the sliders sum to 100 — the visible position then
+      // matches the normalized percentage. Sampling is unaffected
+      // because only the ratios matter.
+      const normalized = normalizeWeights(state.weights);
+      if (!normalized) return state;
+      return {
+        ...state,
+        weights: normalized.map((w) => w * 100),
+      };
     }
 
     case "equity-start":

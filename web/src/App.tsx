@@ -193,6 +193,15 @@ export function App() {
           >
             {state.trial.kind === "pending" ? "Dealing…" : "Deal one hand"}
           </button>
+          <button
+            type="button"
+            className="calibrate"
+            onClick={() => dispatch({ type: "calibrate-weights" })}
+            disabled={normalizeWeights(state.weights) === null}
+            title="Rescale sliders so they sum to 100; the position matches the normalized %"
+          >
+            Calibrate
+          </button>
           {state.equity.kind !== "ready" && (
             <span className="deal-row__note">
               Waiting for equity computation to finish…
