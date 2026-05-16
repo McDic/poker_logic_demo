@@ -16,3 +16,6 @@
 .DS_Store
 .idea
 .vscode
+
+# Python (pyenv virtualenv pin — project is not Python)
+.python-version
