@@ -1,42 +1,130 @@
 # Black Dealing Demonstration
 
-This project aims to demonstrate "black dealing" (modified probability) in fraud online poker rooms.
-I can't believe people think probability modification is hard - I want to demonstrate this is technically easy.
-The problem is how to fine-tune this number, not about technical implementation.
+A live, in-browser demonstration of how a poker dealer can bias post-all-in
+runouts to match any target win-probability vector. The point isn't the
+math — it's trivial — but to show that "fair shuffle" online poker rooms
+can run arbitrarily rigged outcomes with zero forensic trace beyond
+per-hand RNG analysis. Detection from the player side is hopeless without
+aggregate statistics across many hands, and the bias can be tuned to evade
+that too.
 
-## How to modify probability arbitrarily
+🃏 **Live demo:** <https://mcdic.github.io/poker_logic_demo/>
 
-My algorithm follows:
+## What the site does
 
-Let's say multiple players all-ined at some street(preflop, flop, turn):
+When multiple players are all-in, the dealer reveals the rest of the
+community board ("runout"). A fair dealer samples uniformly from the
+remaining 5-card runouts. A *black* dealer picks a target win-probability
+vector `M` and samples a runout consistent with it.
 
-- Player $i$ has equity $E_i$, then $\sum{E_i} = 1$ and $\forall_i 0 \le E_i \le 1$
-- Let's group all future boardings $B_i$ is a set of boardings that makes Player $i$ wins.
-  For example, if AA(Player 1) and KK(Player 2) all-ined at K37r flop, then (turn A, river 9) is in $B_1$ and (turn K, river A) is in $B_2$.
-- Modified probability of making player $i$ is $M_i$, then select group based on $M$ then pick any future boarding from that group.\
+The UI lets you:
 
-In this way we can put arbitrary probability modification to choose who will win.
-There are some chop(tie) scenarios, maybe we can discuss about this further.
+1. Set 2–4 player hands and (optionally) a partial board (preflop / flop / turn).
+2. View exact true equity computed by enumerating every future runout.
+3. Set target weights `M_i` for each player with sliders.
+4. Sample one biased runout (Deal one hand) — or run a Monte Carlo of up to
+   1,000,000 trials and watch the empirical win rate converge to `M`,
+   regardless of true equity.
 
-## UI
+The convergence is the demonstration: bias of 90/10 produces empirical
+90/10 even when true equity is 8.6/91.4.
+
+## The algorithm
+
+Given player hands and a partial board, enumerate every future 5-card
+runout `b`. Let `T_b ⊆ {1..n}` be the set of tied winners on board `b`
+(usually a singleton; sometimes a chop). Given target weights `M`:
+
+1. Sample winner `i ~ Multinomial(M)`.
+2. Reject-sample a runout: draw `b` uniformly, accept iff `i ∈ T_b` with
+   probability `1/|T_b|`.
+
+The resulting joint distribution satisfies `P(winner = i) = M_i / Σ M_j`
+exactly. Chop boards contribute fractionally — option (b) in the
+design discussion: a chop board's mass is split equally among its tied
+players' groups. This is also how `true equity` is reported throughout
+the UI, so the "Reset to equity" button gives a fair-dealer baseline that
+the simulation converges back to.
+
+## Architecture
+
+- **`crates/black-dealing`** — Rust crate, exposed to JS via `wasm-bindgen`.
+  Owns `DealingTable`: enumerates runouts using `pokercraft-core::HandRank::find_best5`,
+  stores tied-winner bitmasks (1 byte per board), exposes `equities`,
+  `sampleTrial`, `sampleBatch`. ~22M samples/sec measured for the inner loop.
+- **`pokercraft-local`** — git submodule pinned to commit `dbb0bd8`. Used
+  read-only via path dependency into `crates/core`. The submodule has
+  its own workspace; we `exclude = ["pokercraft-local"]` from ours.
+- **`web/`** — Vite + React + TypeScript. A single Web Worker
+  (`workers/dealer.worker.ts`) owns the in-memory `DealingTable`. The
+  UI never blocks on the ~7s preflop enumeration, and flipping weight
+  sliders re-samples without rebuilding the table.
+- **Pure-TS layer** lives in `web/src/lib/` (no React imports). State is
+  managed by a single reducer so swapping the UI later requires no logic
+  changes.
+- **Deploy** — GitHub Actions builds the WASM crate + Vite bundle and
+  publishes to GitHub Pages on every push to `master`.
+
+## Local development
+
+Prerequisites: Rust toolchain, [`wasm-pack`](https://rustwasm.github.io/wasm-pack/),
+Node 20+.
+
+```bash
+git clone --recurse-submodules https://github.com/McDic/poker_logic_demo.git
+cd poker_logic_demo
+
+# Build WASM bindings → web/src/wasm/  (release; ~10s after first cargo cache)
+./scripts/build-wasm.sh
+# Faster iteration during Rust changes:
+# ./scripts/build-wasm.sh dev
+
+# Web app
+cd web
+npm install
+npm run dev
+# → http://localhost:5173/poker_logic_demo/
+```
+
+Other commands:
+
+```bash
+npm run typecheck   # strict TS check
+npm run build       # production build, writes web/dist/
+cargo test -p black-dealing
+```
+
+## Repo layout
 
 ```
-(Community Board)
-(Player 1 Hand)
-(Player 2 Hand)
-(Player 3 Hand)
-...
-
-(Probability Settings)
-(Run Simulation Button)
+.
+├── crates/black-dealing/       # Our Rust+WASM crate (DealingTable, sampleBatch, ...)
+├── pokercraft-local/           # Submodule: equity + hand evaluator (pinned)
+├── scripts/build-wasm.sh       # wasm-pack → web/src/wasm/
+├── web/
+│   ├── src/
+│   │   ├── lib/                # Pure TS: cards, state, equity, dealer-runner
+│   │   ├── workers/            # Dealer worker (build / sample / stream)
+│   │   ├── components/         # React UI (replaceable layer)
+│   │   ├── wasm/               # Generated wasm-pack output (gitignored)
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── package.json
+│   └── vite.config.ts
+├── .github/workflows/deploy.yml
+├── Cargo.toml                  # Workspace (excludes pokercraft-local/)
+└── LICENSE                     # MIT
 ```
 
-UI should provide following features:
+## Deploying your own copy
 
-- Upper side:
-  - Able to set multiple player's hands
-  - Optionally able to set community board(flop + turn)
-  - Show the true equity of each player on current board
-- Lower side:
-  - Make a slider(or choose other better UI if any) that modifies probability for each player
-  - Run multiple simulations and show that the result converges to the modified probability
+1. Fork or clone this repo to your own GitHub account.
+2. In repo settings → **Pages**, set **Source** to *GitHub Actions*.
+3. Push to `master`. The `Deploy to GitHub Pages` workflow builds Rust
+   → WASM → Vite bundle and publishes to `<user>.github.io/<repo>/`.
+4. If your repo name differs from `poker_logic_demo`, update the
+   `VITE_BASE_PATH` env or the default in `web/vite.config.ts`.
+
+## License
+
+[MIT](./LICENSE).
